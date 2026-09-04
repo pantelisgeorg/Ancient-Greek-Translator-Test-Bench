@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ancient Greek Translator — Test Bench</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e8ee;
+    --muted: #8b93a5;
+    --accent: #4f8cff;
+    --ok: #3fb950;
+    --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 0 0 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 7px; padding: 9px 11px;
+    font: inherit; font-size: 14px;
+  }
+  input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  textarea { resize: vertical; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 200px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+    padding: 10px 22px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); font-weight: 400; }
+  .counter { text-align: right; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .counter.limit { color: var(--err); }
+  .outcard {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; display: none; overflow-wrap: break-word;
+  }
+  .outhead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; gap: 10px; flex-wrap: wrap; }
+  .outmodel { font-weight: 600; font-size: 14px; }
+  .outmeta { color: var(--muted); font-size: 12px; }
+  .outtext { white-space: pre-wrap; font-size: 15px; }
+  .outtext.greek { font-family: "Noto Serif", "Palatino Linotype", Georgia, serif; font-size: 16px; }
+  .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--muted);
+    border-top-color: transparent; border-radius: 50%; animation: sp .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .errorbox { color: var(--err); font-size: 13px; white-space: pre-wrap; }
+  details { margin-top: 4px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ancient Greek Translator — Test Bench</h1>
+  <p class="sub">TranslatorMind-style system prompts, editable, with side-by-side model comparison.</p>
+
+  <div class="card">
+    <h2>API</h2>
+    <div class="row">
+      <div style="flex:2">
+        <label>OpenAI API key (stored in your browser only)</label>
+        <input type="password" id="apiKey" placeholder="sk-... or leave empty to use server env">
+      </div>
+      <div style="flex:2">
+        <label>Base URL</label>
+        <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1">
+      </div>
+      <div>
+        <label>Temperature</label>
+        <input type="number" id="temperature" value="0.2" min="0" max="2" step="0.1">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>System Prompt</h2>
+    <div class="row" style="margin-bottom:12px">
+      <div style="flex:2">
+        <label>Direction preset</label>
+        <select id="direction">
+          <option value="auto">Auto-detect (English ↔ Attic Greek) — TranslatorMind style</option>
+          <option value="grc2el">Ancient Greek → Modern Greek (δημοτική)</option>
+          <option value="en2grc">English → Attic Greek (polytonic)</option>
+          <option value="grc2en">Ancient Greek → English</option>
+        </select>
+      </div>
+    </div>
+    <label>System prompt (edit freely, saved per direction)</label>
+    <textarea id="sysPrompt" rows="4"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Input</h2>
+    <textarea id="inputText" rows="6" maxlength="3000" placeholder="πολλοὶ γὰρ καλεῖται, ὀλίγοι δὲ ἐκλέγονται."></textarea>
+    <div class="counter"><span id="count">0</span> / 3000</div>
+  </div>
+
+  <div class="card">
+    <h2>Models</h2>
+    <div class="grid2">
+      <div>
+        <label>Model A</label>
+        <input type="text" id="modelA" list="modelList" value="gpt-4o">
+      </div>
+      <div>
+        <label>Model B (optional — run side-by-side)</label>
+        <input type="text" id="modelB" list="modelList" placeholder="gpt-4o-mini (leave empty for single)">
+      </div>
+    </div>
+    <datalist id="modelList">
+      <option value="gpt-4o"></option>
+      <option value="gpt-4o-mini"></option>
+      <option value="gpt-4.1"></option>
+      <option value="gpt-4.1-mini"></option>
+      <option value="gpt-4.1-nano"></option>
+      <option value="o3-mini"></option>
+      <option value="o4-mini"></option>
+    </datalist>
+    <div class="row" style="margin-top:14px; align-items:center">
+      <button id="runBtn">Translate</button>
+      <button id="clearBtn" class="ghost">Clear</button>
+    </div>
+  </div>
+
+  <div class="grid2" id="results"></div>
+</div>
+
+<script>
+const PROMPTS = {
+  auto: "You are an expert translator of Classical Attic Greek. Detect the source language of the user's text. If the text is English (or another modern language), translate it into Classical Attic Greek written in polytonic script, with correct accents and breathings. If the text is Ancient Greek, translate it into clear, idiomatic modern English. Output only the pure translation — no headers, no footnotes, no commentary, no alternatives.",
+  grc2el: "You are an expert translator of Ancient Greek. Translate the user's Ancient Greek text into fluent, natural modern Greek (δημοτική). Output only the translation — no notes, no commentary, no alternatives.",
+  en2grc: "You are an expert composer of Classical Attic Greek. Translate the user's English text into Classical Attic Greek written in polytonic script, with correct accents and breathings. Output only the translation.",
+  grc2en: "You are an expert translator of Ancient Greek. Translate the user's Ancient Greek text into clear, idiomatic modern English. Output only the translation.",
+};
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { const v = localStorage.getItem('gt_'+k); return v === null ? d : v; },
+  set(k, v) { localStorage.setItem('gt_'+k, v); }
+};
+
+let customPrompts = {};
+try { customPrompts = JSON.parse(store.get('prompts', '{}')); } catch(e) {}
+
+const els = {
+  apiKey: $('apiKey'), baseUrl: $('baseUrl'), temperature: $('temperature'),
+  direction: $('direction'), sysPrompt: $('sysPrompt'),
+  inputText: $('inputText'), count: $('count'),
+  modelA: $('modelA'), modelB: $('modelB'),
+  runBtn: $('runBtn'), clearBtn: $('clearBtn'), results: $('results'),
+};
+
+els.apiKey.value = store.get('apikey', '');
+els.baseUrl.value = store.get('baseurl', '');
+els.temperature.value = store.get('temperature', '0.2');
+els.modelA.value = store.get('modelA', 'gpt-4o');
+els.modelB.value = store.get('modelB', '');
+
+function currentPrompt() { return customPrompts[els.direction.value] || PROMPTS[els.direction.value]; }
+els.sysPrompt.value = currentPrompt();
+
+els.direction.addEventListener('change', () => {
+  els.sysPrompt.value = currentPrompt();
+  store.set('direction', els.direction.value);
+});
+els.sysPrompt.addEventListener('input', () => {
+  customPrompts[els.direction.value] = els.sysPrompt.value;
+  store.set('prompts', JSON.stringify(customPrompts));
+});
+[['apikey', els.apiKey], ['baseurl', els.baseUrl], ['temperature', els.temperature],
+ ['modelA', els.modelA], ['modelB', els.modelB]].forEach(([k, el]) =>
+  el.addEventListener('input', () => store.set(k, el.value)));
+
+els.inputText.addEventListener('input', () => {
+  const n = els.inputText.value.length;
+  els.count.textContent = n;
+  els.count.parentElement.classList.toggle('limit', n > 2700);
+});
+
+els.clearBtn.addEventListener('click', () => {
+  els.inputText.value = '';
+  els.inputText.dispatchEvent(new Event('input'));
+  els.results.innerHTML = '';
+});
+
+function cardHtml(id, title) {
+  return `<div class="outcard" id="${id}">
+    <div class="outhead"><span class="outmodel"></span><span class="outmeta"></span></div>
+    <div class="outtext"></div>
+  </div>`;
+}
+
+async function runOne(model, sysPrompt, text) {
+  const res = await fetch('/api/translate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      text, system_prompt: sysPrompt, model,
+      api_key: els.apiKey.value.trim(),
+      base_url: els.baseUrl.value.trim(),
+      temperature: parseFloat(els.temperature.value) || 0.2,
+    }),
+  });
+  let data;
+  try { data = await res.json(); } catch(e) { throw new Error(`HTTP ${res.status} — non-JSON response`); }
+  if (!res.ok || !data.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+els.runBtn.addEventListener('click', async () => {
+  const text = els.inputText.value.trim();
+  if (!text) { alert('Enter text first.'); return; }
+  const models = [els.modelA.value.trim(), els.modelB.value.trim()].filter(Boolean);
+  if (!models.length) { alert('Enter at least one model.'); return; }
+
+  els.results.innerHTML = '';
+  els.runBtn.disabled = true;
+
+  const cards = models.map((m, i) => {
+    const id = 'out' + i;
+    els.results.insertAdjacentHTML('beforeend', cardHtml(id, m));
+    const card = document.getElementById(id);
+    card.style.display = 'block';
+    card.querySelector('.outmodel').textContent = m;
+    card.querySelector('.outmeta').innerHTML = '<span class="spin"></span>running…';
+    return { m, card };
+  });
+
+  const sysPrompt = els.sysPrompt.value.trim() || currentPrompt();
+  const greekOut = els.direction.value === 'en2grc' || els.direction.value === 'grc2el';
+
+  const results = await Promise.allSettled(
+    cards.map(c => runOne(c.m, sysPrompt, text)));
+
+  results.forEach((r, i) => {
+    const { card } = cards[i];
+    const head = card.querySelector('.outmodel');
+    const meta = card.querySelector('.outmeta');
+    const out = card.querySelector('.outtext');
+    if (r.status === 'fulfilled') {
+      const d = r.value;
+      const t = d.usage ? ` · ${d.usage.prompt_tokens}+${d.usage.completion_tokens} tok` : '';
+      meta.textContent = `${(d.elapsed_ms/1000).toFixed(1)}s${t}`;
+      out.classList.toggle('greek', greekOut);
+      out.innerHTML = (window.marked ? marked.parse(d.output || '') : '') || escapeHtml(d.output || '');
+    } else {
+      head.textContent += ' — failed';
+      meta.textContent = '';
+      out.innerHTML = `<div class="errorbox">${escapeHtml(String(r.reason && r.reason.message || r.reason))}</div>`;
+    }
+  });
+
+  els.runBtn.disabled = false;
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>
