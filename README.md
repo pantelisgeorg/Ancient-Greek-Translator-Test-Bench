@@ -1,4 +1,4 @@
-# Greek Translator Test Bench
+# Ancient Greek Translator Test Bench
 
 A small web app for benchmarking LLM translation of Ancient Greek. It supports
 multiple translation directions, editable system prompts (TranslatorMind-style),
